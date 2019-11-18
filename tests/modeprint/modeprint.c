@@ -53,7 +53,6 @@ int full_modes;
 int encoders;
 int crtcs;
 int fbs;
-char *module_name;
 
 static int printMode(struct drm_mode_modeinfo *mode)
 {
@@ -320,9 +319,7 @@ static void args(int argc, char **argv)
 	connectors = 0;
 	current = 0;
 
-	module_name = argv[1];
-
-	for (i = 2; i < argc; i++) {
+	for (i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "-fb") == 0) {
 			fbs = 1;
 			defaults = 0;
@@ -383,18 +380,16 @@ static void args(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	int fd;
-	drmModeResPtr res;
+	char *device = NULL;
+	char *module = NULL;
 
-	if (argc == 1) {
-		printf("Please add modulename as first argument\n");
-		return 1;
-	}
+	drmModeResPtr res;
 
 	args(argc, argv);
 
 	printf("Starting test\n");
 
-	fd = drmOpen(module_name, NULL);
+	fd = util_open(device, module);
 
 	if (fd < 0) {
 		printf("Failed to open the card fd (%d)\n",fd);
