@@ -124,6 +124,7 @@ const char *util_lookup_connector_type_name(unsigned int type)
 }
 
 static const char * const modules[] = {
+	"vc4",
 	"i915",
 	"amdgpu",
 	"radeon",
@@ -139,7 +140,6 @@ static const char * const modules[] = {
 	"rockchip",
 	"atmel-hlcdc",
 	"fsl-dcu-drm",
-	"vc4",
 	"virtio_gpu",
 	"mediatek",
 	"meson",
