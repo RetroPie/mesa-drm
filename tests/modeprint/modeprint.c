@@ -31,6 +31,7 @@
  */
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -49,14 +50,18 @@ int connectors;
 int full_props;
 int edid;
 int modes;
+int debug_modes;
 int full_modes;
 int encoders;
 int crtcs;
 int fbs;
 
-static int printMode(struct drm_mode_modeinfo *mode)
+static int printMode(struct drm_mode_modeinfo *mode, bool is_crtc, int mode_id, int encoder_id)
 {
-	if (full_modes) {
+	if (debug_modes) {
+		printf("Mode: %s @ %i Hz ( clock: %.2f Mhz ) %s %i %i\n", mode->name, mode->vrefresh,
+		   mode->clock / 1000.0, is_crtc ? "crtc" : "connector", mode_id, encoder_id);
+	} else if (full_modes) {
 		printf("Mode: %s\n", mode->name);
 		printf("\tclock       : %i\n", mode->clock);
 		printf("\thdisplay    : %i\n", mode->hdisplay);
@@ -166,7 +171,7 @@ static int printConnector(int fd, drmModeResPtr res, drmModeConnectorPtr connect
 	if (modes) {
 		for (i = 0; i < connector->count_modes; i++) {
 			mode = (struct drm_mode_modeinfo *)&connector->modes[i];
-			printMode(mode);
+			printMode(mode, false, connector->encoder_id, i);
 		}
 	}
 
@@ -197,6 +202,9 @@ static int printEncoder(int fd, drmModeResPtr res, drmModeEncoderPtr encoder, ui
 	printf("\ttype   :%d\n", encoder->encoder_type);
 	printf("\tpossible_crtcs  :0x%x\n", encoder->possible_crtcs);
 	printf("\tpossible_clones :0x%x\n", encoder->possible_clones);
+
+	if (debug_modes)
+		printf("Encoder map: %i to %i\n", id, encoder->crtc_id);
 	return 0;
 }
 
@@ -210,6 +218,9 @@ static int printCrtc(int fd, drmModeResPtr res, drmModeCrtcPtr crtc, uint32_t id
 	printf("\theight         : %i\n", crtc->height);
 	printf("\tmode           : %p\n", &crtc->mode);
 	printf("\tgamma size     : %d\n", crtc->gamma_size);
+
+	if (debug_modes)
+	        printMode((struct drm_mode_modeinfo *)&crtc->mode, true, id, 0);
 
 	return 0;
 }
@@ -362,6 +373,8 @@ static void args(int argc, char **argv)
 			defaults = 0;
 		} else if (strcmp(argv[i], "-current") == 0) {
 			current = 1;
+		} else if (strcmp(argv[i], "-debug") == 0) {
+			debug_modes = 1;
 		}
 	}
 
