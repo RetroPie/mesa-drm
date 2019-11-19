@@ -67,6 +67,38 @@
 #include "buffers.h"
 #include "cursor.h"
 
+#ifndef DRM_MODE_FLAG_PIC_AR_BITS_POS
+#define DRM_MODE_FLAG_PIC_AR_BITS_POS   19
+#endif
+
+static int runcommand = 0;
+int drm_to_mode_aspect_ratio(int flags);
+
+static const char *const aspect_ratio_as_string[] = {
+        [DRM_MODE_PICTURE_ASPECT_NONE] = "n/a",
+        [DRM_MODE_PICTURE_ASPECT_4_3] = "4:3",
+        [DRM_MODE_PICTURE_ASPECT_16_9] = "16:9",
+        [DRM_MODE_PICTURE_ASPECT_64_27] = "64:27",
+        [DRM_MODE_PICTURE_ASPECT_256_135] = "256:135",
+};
+
+int
+drm_to_mode_aspect_ratio(int flags)
+{
+	return (flags & DRM_MODE_FLAG_PIC_AR_MASK) >>
+		DRM_MODE_FLAG_PIC_AR_BITS_POS;
+}
+
+static const char *
+aspect_ratio_to_string(int ratio)
+{
+	if (ratio < 0 || ratio >= (int)(sizeof(aspect_ratio_as_string) / sizeof(aspect_ratio_as_string[0])) ||
+	    !aspect_ratio_as_string[ratio])
+		return "n/a";
+
+	return aspect_ratio_as_string[ratio];
+}
+
 static enum util_fill_pattern primary_fill = UTIL_PATTERN_SMPTE;
 static enum util_fill_pattern secondary_fill = UTIL_PATTERN_TILES;
 
@@ -197,6 +229,11 @@ static void dump_encoders(struct device *dev)
 		if (!encoder)
 			continue;
 
+		if (runcommand)
+			printf("Encoder map: %d to %d\n",
+			       encoder->encoder_id,
+			       encoder->crtc_id);
+
 		printf("%d\t%d\t%s\t0x%08x\t0x%08x\n",
 		       encoder->encoder_id,
 		       encoder->crtc_id,
@@ -207,8 +244,26 @@ static void dump_encoders(struct device *dev)
 	printf("\n");
 }
 
-static void dump_mode(drmModeModeInfo *mode)
+static void dump_mode(drmModeModeInfo *mode, bool is_crtc, int encoder_id, int mode_id)
 {
+
+	if (runcommand) {
+	        printf("Mode: %s @ %d Hz %s (%.2f Mhz, ",
+		       mode->name,
+		       mode->vrefresh,
+		       aspect_ratio_to_string(drm_to_mode_aspect_ratio(mode->flags)),
+		       mode->clock / 1000.0f);
+		mode_flag_str(mode->flags);
+		printf(", ");
+		mode_type_str(mode->type);
+		printf(") %s %d %d\n",
+		       is_crtc ? "crtc" : "connector",
+		       encoder_id,
+		       mode_id);
+
+		return;
+	}
+
 	printf("  %s %d %d %d %d %d %d %d %d %d %d",
 	       mode->name,
 	       mode->vrefresh,
@@ -449,7 +504,7 @@ static void dump_connectors(struct device *dev)
 			printf("\tname refresh (Hz) hdisp hss hse htot vdisp "
 			       "vss vse vtot)\n");
 			for (j = 0; j < connector->count_modes; j++)
-				dump_mode(&connector->modes[j]);
+				dump_mode(&connector->modes[j], false, connector->encoder_id, j);
 		}
 
 		if (_connector->props) {
@@ -481,7 +536,7 @@ static void dump_crtcs(struct device *dev)
 		       crtc->buffer_id,
 		       crtc->x, crtc->y,
 		       crtc->width, crtc->height);
-		dump_mode(&crtc->mode);
+		dump_mode(&crtc->mode, true, crtc->crtc_id, i);
 
 		if (_crtc->props) {
 			printf("  props:\n");
@@ -1811,7 +1866,7 @@ static void parse_fill_patterns(char *arg)
 
 static void usage(char *name)
 {
-	fprintf(stderr, "usage: %s [-acDdefMPpsCvw]\n", name);
+	fprintf(stderr, "usage: %s [-acDdefMPprsCvw]\n", name);
 
 	fprintf(stderr, "\n Query options:\n\n");
 	fprintf(stderr, "\t-c\tlist connectors\n");
@@ -1832,6 +1887,7 @@ static void usage(char *name)
 	fprintf(stderr, "\t-d\tdrop master after mode set\n");
 	fprintf(stderr, "\t-M module\tuse the given driver\n");
 	fprintf(stderr, "\t-D device\tuse the given device\n");
+	fprintf(stderr, "\t-r\tenable runcommand debug output\n");
 
 	fprintf(stderr, "\n\tDefault is to dump all info.\n");
 	exit(0);
@@ -1890,7 +1946,7 @@ static int pipe_resolve_connectors(struct device *dev, struct pipe_arg *pipe)
 	return 0;
 }
 
-static char optstr[] = "acdD:efF:M:P:ps:Cvw:";
+static char optstr[] = "acdD:efF:M:P:prs:Cvw:";
 
 int main(int argc, char **argv)
 {
@@ -1964,6 +2020,10 @@ int main(int argc, char **argv)
 		case 'p':
 			crtcs = 1;
 			planes = 1;
+			break;
+		case 'r':
+			runcommand = 1;
+			args--;
 			break;
 		case 's':
 			pipe_args = realloc(pipe_args,
