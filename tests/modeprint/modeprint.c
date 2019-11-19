@@ -56,11 +56,41 @@ int encoders;
 int crtcs;
 int fbs;
 
+#define DRM_MODE_FLAG_PIC_AR_BITS_POS   19
+int drm_to_mode_aspect_ratio(int flags);
+
+static const char *const aspect_ratio_as_string[] = {
+        [DRM_MODE_PICTURE_ASPECT_NONE] = "n/a",
+        [DRM_MODE_PICTURE_ASPECT_4_3] = "4:3",
+        [DRM_MODE_PICTURE_ASPECT_16_9] = "16:9",
+        [DRM_MODE_PICTURE_ASPECT_64_27] = "64:27",
+        [DRM_MODE_PICTURE_ASPECT_256_135] = "256:135",
+};
+
+int
+drm_to_mode_aspect_ratio(int flags)
+{
+	return (flags & DRM_MODE_FLAG_PIC_AR_MASK) >>
+		DRM_MODE_FLAG_PIC_AR_BITS_POS;
+}
+
+static const char *
+aspect_ratio_to_string(int ratio)
+{
+	if (ratio < 0 || ratio >= (int)(sizeof(aspect_ratio_as_string) / sizeof(aspect_ratio_as_string[0])) ||
+	    !aspect_ratio_as_string[ratio])
+		return "n/a";
+
+	return aspect_ratio_as_string[ratio];
+}
+
+
 static int printMode(struct drm_mode_modeinfo *mode, bool is_crtc, int mode_id, int encoder_id)
 {
 	if (debug_modes) {
-		printf("Mode: %s @ %i Hz ( clock: %.2f Mhz ) %s %i %i\n", mode->name, mode->vrefresh,
-		   mode->clock / 1000.0, is_crtc ? "crtc" : "connector", mode_id, encoder_id);
+		printf("Mode: %s @ %i Hz, clock: %.2f Mhz, aspect: %s %s %i %i\n", mode->name, mode->vrefresh,
+		   mode->clock / 1000.0, aspect_ratio_to_string(drm_to_mode_aspect_ratio(mode->flags)),
+		   is_crtc ? "crtc" : "connector", mode_id, encoder_id);
 	} else if (full_modes) {
 		printf("Mode: %s\n", mode->name);
 		printf("\tclock       : %i\n", mode->clock);
@@ -408,6 +438,9 @@ int main(int argc, char **argv)
 		printf("Failed to open the card fd (%d)\n",fd);
 		return 1;
 	}
+
+	// enable aspect ratio client query
+	drmSetClientCap(fd, DRM_CLIENT_CAP_ASPECT_RATIO, 1);
 
 	res = drmModeGetResources(fd);
 	if (res == 0) {
