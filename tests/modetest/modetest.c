@@ -248,8 +248,9 @@ static void dump_mode(drmModeModeInfo *mode, bool is_crtc, int encoder_id, int m
 {
 
 	if (runcommand) {
-	        printf("Mode: %s @ %d Hz %s (%.2f Mhz, ",
-		       mode->name,
+	        printf("Mode: %dx%d @ %d Hz %s (%.2f Mhz, ",
+		       mode->hdisplay,
+		       mode->vdisplay,
 		       mode->vrefresh,
 		       aspect_ratio_to_string(drm_to_mode_aspect_ratio(mode->flags)),
 		       mode->clock / 1000.0f);
